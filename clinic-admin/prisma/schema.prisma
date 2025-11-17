@@ -1,0 +1,412 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductType {
+  SERVICE
+  GOOD
+}
+
+enum UnitType {
+  SMALL
+  LARGE
+}
+
+enum OrderStatus {
+  CANCELLED
+  BELUM_BAYAR
+  BELUM_LUNAS
+  SUDAH_LUNAS
+}
+
+enum AttendanceStatus {
+  PENDING // Belum datang / Belum bisa dipastikan (Status default)
+  HAS_ATTENDED // Datang
+  NO_SHOW // Tidak Datang
+}
+
+model user_role {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  users           user[]
+  rolePermissions role_permission[]
+
+  @@map("user_roles")
+}
+
+model business_area {
+  id         Int      @id @default(autoincrement())
+  name       String
+  address    String?
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  users          user[]
+  schedule       schedule[]
+  order          order[]
+  employee       employee[]
+  product        product[]
+  employeeTitles employee_title[]
+
+  @@map("business_areas")
+}
+
+model user {
+  id               Int      @id @default(autoincrement())
+  username         String   @unique
+  password         String
+  role_id          Int
+  business_area_id Int?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @default(now()) @updatedAt
+
+  role          user_role      @relation(fields: [role_id], references: [id], map: "FK_User_Role") // Added map
+  business_area business_area? @relation(fields: [business_area_id], references: [id], map: "FK_User_BusinessArea") // Added map
+  sessions      session[]
+
+  // Relasi ke employee (one-to-one) - HANYA RELASI BALIK
+  employee employee?
+
+  @@map("users")
+}
+
+model session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  user user @relation(fields: [userId], references: [id], map: "FK_Session_User") // Added map
+
+  @@map("sessions")
+}
+
+model product {
+  id               Int
+  business_area_id Int
+  supplier_id      Int? // <-- FIELD BARU (Opsional, bisa null)
+  name             String
+  tariff           Int
+  type             ProductType @default(SERVICE)
+  big_unit_name    String?
+  small_unit_name  String?
+
+  small_unit_tariff Int?
+  unit_conversion   Int?
+
+  is_sale    Boolean  @default(true)
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relasi BARU ke Supplier
+  supplier supplier? @relation(fields: [supplier_id], references: [id], onUpdate: Cascade, map: "FK_Product_Supplier")
+
+  serviceProduct ServiceProduct[]
+
+  schedule      schedule[]
+  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_Product_BusinessArea")
+  orderItems    order_item[]
+
+  stock     stock?
+  purchases purchase[]
+
+  @@id([id, business_area_id])
+  @@map("products")
+}
+
+model service {
+  id         Int      @id @default(autoincrement())
+  name       String
+  price      Int
+  is_default Boolean  @default(false)
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  productService ServiceProduct[]
+  schedules      schedule[]
+  orderItems     order_item[]
+
+  @@map("services")
+}
+
+model ServiceProduct {
+  id                       Int @id @default(autoincrement())
+  service_id               Int
+  product_id               Int
+  product_business_area_id Int
+
+  quantity  Int      @default(1)
+  unit_type UnitType @default(LARGE)
+
+  service service @relation(fields: [service_id], references: [id], map: "FK_SP_Service") // Added map
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], map: "FK_SP_Product", onUpdate: Cascade) // Added map
+
+  @@map("service_products")
+}
+
+model schedule {
+  id                       Int      @id @default(autoincrement())
+  business_area_id         Int
+  product_id               Int
+  product_business_area_id Int
+  service_id               Int
+  start_time               DateTime
+  end_time                 DateTime
+  max_quota                Int
+  remaining_quota          Int
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_Schedule_BusinessArea")
+  service       service       @relation(fields: [service_id], references: [id], map: "FK_Schedule_Service")
+
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_Schedule_Product") // Added map
+
+  order_item     order_item[]
+  medical_record medical_record[]
+
+  @@unique([business_area_id, product_id, product_business_area_id, start_time])
+  @@map("schedules")
+}
+
+model referral_type {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  patients patient[]
+
+  @@map("referral_types")
+}
+
+model patient {
+  id                Int      @id @default(autoincrement())
+  full_name         String
+  gender            String
+  date_of_birth     DateTime
+  whatsapp_number   String?
+  address           String?
+  registration_date DateTime @default(now())
+  referral_type_id  Int
+  referral_id       Int?
+
+  // Definisikan relasi
+  referral_type  referral_type    @relation(fields: [referral_type_id], references: [id], map: "FK_Patient_ReferralType") // Added map
+  referred_by    patient?         @relation("PatientReferral", fields: [referral_id], references: [id], map: "FK_Patient_ReferredBy") // Added map
+  referrals      patient[]        @relation("PatientReferral")
+  medical_record medical_record[]
+
+  @@map("patients")
+}
+
+model order {
+  id                String           @id
+  business_area_id  Int
+  total_price       Int
+  dp                Int
+  status            OrderStatus
+  attendance_status AttendanceStatus @default(PENDING)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @default(now()) @updatedAt
+
+  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_Order_BusinessArea") // Added map
+
+  order_items   order_item[]
+  order_payment order_payment[]
+
+  @@map("orders")
+}
+
+model order_item {
+  id                       Int       @id @default(autoincrement())
+  order_id                 String
+  product_id               Int
+  product_business_area_id Int
+  schedule_id              Int?
+  service_id               Int?
+  service_price            Int?
+  service_quantity         Int?
+  quantity                 Int
+  unit_used                UnitType?
+  price                    Int
+  is_assigned              Boolean   @default(false)
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @default(now()) @updatedAt
+
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_OrderItem_Product")
+
+  order          order            @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_OrderItem_Order") // Added map
+  schedule       schedule?        @relation(fields: [schedule_id], references: [id], map: "FK_OrderItem_Schedule") // Added map
+  service        service?         @relation(fields: [service_id], references: [id], map: "FK_OrderItem_Service")
+  medical_record medical_record[]
+
+  @@map("order_items")
+}
+
+model payment_method {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  order_payments order_payment[]
+
+  @@map("payment_methods")
+}
+
+model order_payment {
+  id                String   @id @default(cuid())
+  order_id          String
+  payment_method_id Int
+  amount            Int
+  is_success        Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+
+  // PERBAIKAN: Menambahkan `map` untuk mencegah konflik penamaan FK di MySQL
+  order          order          @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_OrderPayment_Order")
+  payment_method payment_method @relation(fields: [payment_method_id], references: [id], onUpdate: Cascade, map: "FK_OrderPayment_PaymentMethod")
+
+  @@map("order_payments")
+}
+
+model medical_record {
+  id                   Int      @id @default(autoincrement())
+  patient_id           Int
+  schedule_id          Int
+  order_item_id        Int
+  tensi_darah_before   String   @default("")
+  tensi_darah_after    String   @default("")
+  denyut_nadi_before   String   @default("")
+  denyut_nadi_after    String   @default("")
+  kadar_oksigen_before String   @default("")
+  kadar_oksigen_after  String   @default("")
+  created_at           DateTime @default(now())
+  updated_at           DateTime @default(now()) @updatedAt
+
+  // Definisikan relasi
+  patient    patient    @relation(fields: [patient_id], references: [id], map: "FK_MedicalRecord_Patient") // Added map
+  schedule   schedule   @relation(fields: [schedule_id], references: [id], map: "FK_MedicalRecord_Schedule") // Added map
+  order_item order_item @relation(fields: [order_item_id], references: [id], map: "FK_MedicalRecord_OrderItem") // Added map
+
+  @@map("medical_records")
+}
+
+model employee_title {
+  id               String    @id
+  business_area_id Int
+  name             String @unique
+
+  employees employee[]
+
+  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_EmployeeTitle_BusinessArea") // Added map
+
+  @@map("employee_titles")
+}
+
+model employee {
+  // Primary Key Baru
+  nip               String   @id @unique
+  nik               String   @unique
+  full_name         String
+  gender            String
+  date_of_birth     DateTime
+  address           String?
+  whatsapp_number   String?
+  business_area_id  Int?
+  employee_title_id String
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+
+  business_area  business_area? @relation(fields: [business_area_id], references: [id], map: "FK_Employee_BusinessArea")
+  employee_title employee_title @relation(fields: [employee_title_id], references: [id], map: "FK_Employee_Title")
+
+  // Relasi One-to-One ke user, menggunakan user.id (Int) sebagai Foreign Key
+  user    user? @relation(fields: [user_id], references: [id], map: "FK_Employee_User")
+  user_id Int?  @unique // Foreign Key ke user.id
+
+  @@map("employees")
+}
+
+model stock {
+  id                       Int @id @default(autoincrement())
+  product_id               Int
+  product_business_area_id Int
+
+  // Kuantitas selalu dicatat dalam Satuan KECIL
+  quantity Int
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_Stock_Product")
+
+  @@unique([product_id, product_business_area_id])
+  @@map("stocks")
+}
+
+model supplier {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  products product[] // Relasi balik ke produk
+
+  @@map("suppliers")
+}
+
+model permission {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // Contoh: "CREATE_PATIENT", "VIEW_ORDERS", "MANAGE_STOCKS"
+  description String? // Penjelasan singkat tentang izin ini
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relasi balik ke tabel penghubung (role_permission)
+  rolePermissions role_permission[]
+
+  @@map("permissions")
+}
+
+model role_permission {
+  role_id       Int
+  permission_id Int
+
+  created_at DateTime @default(now())
+
+  // Relasi ke model user_role
+  role user_role @relation(fields: [role_id], references: [id], map: "FK_RP_Role", onDelete: Cascade)
+
+  // Relasi ke model permission
+  permission permission @relation(fields: [permission_id], references: [id], map: "FK_RP_Permission", onDelete: Cascade)
+
+  // Primary Key ganda (Compound ID) untuk memastikan kombinasi unik
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model purchase {
+  id                       Int    @id @default(autoincrement())
+  product_id               Int
+  product_business_area_id Int
+  po_number                String
+  quantity                 Int
+  total_amount             Int
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], map: "FK_Purchase_Product")
+
+  @@map("purchases")
+}
