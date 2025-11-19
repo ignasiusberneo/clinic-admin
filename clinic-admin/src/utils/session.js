@@ -104,90 +104,54 @@ export async function validateSessionOnly(sessionToken) {
 }
 
 // --- Fungsi Bantu: Validasi & Perbarui Session dengan Transaction dan Retry ---
+
 export async function validateAndUpdateSession(sessionToken) {
   if (!sessionToken) {
-    return null; // Session token tidak ada
+    return null;
   }
 
-  const maxRetries = 3; // Maksimal 3 kali percobaan
+  const maxRetries = 3;
   let retries = 0;
-
-  // Hitung waktu expires baru (misalnya 1 jam dari sekarang) di luar loop
-  // Nilai ini konstan untuk setiap percobaan.
   const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
   const newExpires = new Date(Date.now() + ONE_DAY_IN_MS);
 
+  // --- 1. OPERASI TULIS (TRANSACTIONAL) ---
+  // Simpan hasil pembaruan untuk mendapatkan userId
+  let userId = null;
+
   while (retries < maxRetries) {
     try {
-      // --- Gunakan prisma.$transaction dengan satu operasi Update Kondisional ---
-      const result = await prisma.$transaction(
-        async (tx) => {
-          // Coba perbarui session HANYA jika:
-          // 1. sessionToken cocok
-          // 2. session BELUM kadaluarsa (expires > waktu saat ini)
-          const updatedSession = await tx.session
-            .update({
-              where: {
-                sessionToken: sessionToken,
-                expires: {
-                  gt: new Date(), // Sesi harus masih berlaku (lebih besar dari waktu sekarang)
-                },
-              },
-              data: {
-                expires: newExpires, // Perbarui waktu kadaluarsa
-              },
-              select: {
-                user: {
-                  select: {
-                    id: true,
-                    username: true,
-                    role_id: true,
-                    business_area_id: true,
-                    role: {
-                      select: {
-                        name: true,
-                        rolePermissions: {
-                          select: {
-                            permission: {
-                              select: {
-                                name: true,
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            })
-            // Tangani kasus ketika record tidak ditemukan (P2025)
-            // Ini terjadi jika sessionToken tidak ada ATAU sudah kadaluarsa (karena kondisi `gt: new Date()`)
-            .catch((e) => {
-              if (e instanceof Prisma.PrismaClientKnownRequestError) {
-                if (e.code === "P2025") {
-                  return null; // Session tidak valid/kadaluarsa, anggap hasilnya null
-                }
-              }
-              throw e; // Lempar error lain
-            });
+      const updatedSession = await prisma.$transaction(async (tx) => {
+        // Coba perbarui session HANYA jika valid, dan hanya ambil `userId`
+        const result = await tx.session
+          .update({
+            where: {
+              sessionToken: sessionToken,
+              expires: { gt: new Date() },
+            },
+            data: { expires: newExpires },
+            select: { userId: true }, // 💡 HANYA ambil userId (lebih cepat)
+          })
+          .catch((e) => {
+            if (
+              e instanceof Prisma.PrismaClientKnownRequestError &&
+              e.code === "P2025"
+            ) {
+              return null; // Session tidak valid/kadaluarsa
+            }
+            throw e;
+          });
 
-          // Jika session tidak ditemukan/tidak valid/kadaluarsa, kembalikan null
-          if (!updatedSession) {
-            return null;
-          }
+        if (!result) return null;
+        return result;
+      });
 
-          // Kembalikan data user dari session yang berhasil diperbarui
-          return updatedSession.user;
-        }
-        // Catatan: isolationLevel tidak perlu diatur, menggunakan default Read Committed sudah cukup
-        // karena kita sudah memvalidasi dan mengunci baris dalam satu operasi Update.
-      );
-
-      // Jika transaksi berhasil, kembalikan hasilnya
-      return result;
+      // Jika transaksi update berhasil, simpan userId dan keluar dari loop
+      if (updatedSession) {
+        userId = updatedSession.userId;
+      }
+      break; // Keluar dari loop retry karena transaksi berhasil (atau memang null)
     } catch (error) {
-      // --- Tangani error Deadlock/Write Conflict (P2034) dengan Retry Logic ---
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2034"
@@ -218,10 +182,156 @@ export async function validateAndUpdateSession(sessionToken) {
     }
   }
 
-  // Baris ini secara teknis tidak tercapai karena error akan dilempar di dalam loop,
-  // tetapi ini adalah safety net jika ada kasus edge.
-  throw new Error("Gagal memperbarui session setelah beberapa percobaan.");
+  // Jika userId null (berarti sesi kadaluarsa/tidak valid), kembalikan null
+  if (!userId) {
+    return null;
+  }
+
+  // --- 2. OPERASI BACA (NON-TRANSACTIONAL) ---
+  // Ambil semua data user yang kompleks di luar transaksi.
+  const userWithDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      role_id: true,
+      business_area_id: true,
+      role: {
+        select: {
+          name: true,
+          rolePermissions: {
+            select: {
+              permission: {
+                select: { name: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Kembalikan data user yang kompleks
+  return userWithDetails;
 }
+// export async function validateAndUpdateSession(sessionToken) {
+//   if (!sessionToken) {
+//     return null; // Session token tidak ada
+//   }
+
+//   const maxRetries = 3; // Maksimal 3 kali percobaan
+//   let retries = 0;
+
+//   // Hitung waktu expires baru (misalnya 1 jam dari sekarang) di luar loop
+//   // Nilai ini konstan untuk setiap percobaan.
+//   const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+//   const newExpires = new Date(Date.now() + ONE_DAY_IN_MS);
+
+//   while (retries < maxRetries) {
+//     try {
+//       // --- Gunakan prisma.$transaction dengan satu operasi Update Kondisional ---
+//       const result = await prisma.$transaction(
+//         async (tx) => {
+//           // Coba perbarui session HANYA jika:
+//           // 1. sessionToken cocok
+//           // 2. session BELUM kadaluarsa (expires > waktu saat ini)
+//           const updatedSession = await tx.session
+//             .update({
+//               where: {
+//                 sessionToken: sessionToken,
+//                 expires: {
+//                   gt: new Date(), // Sesi harus masih berlaku (lebih besar dari waktu sekarang)
+//                 },
+//               },
+//               data: {
+//                 expires: newExpires, // Perbarui waktu kadaluarsa
+//               },
+//               select: {
+//                 user: {
+//                   select: {
+//                     id: true,
+//                     username: true,
+//                     role_id: true,
+//                     business_area_id: true,
+//                     role: {
+//                       select: {
+//                         name: true,
+//                         rolePermissions: {
+//                           select: {
+//                             permission: {
+//                               select: {
+//                                 name: true,
+//                               },
+//                             },
+//                           },
+//                         },
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             })
+//             // Tangani kasus ketika record tidak ditemukan (P2025)
+//             // Ini terjadi jika sessionToken tidak ada ATAU sudah kadaluarsa (karena kondisi `gt: new Date()`)
+//             .catch((e) => {
+//               if (e instanceof Prisma.PrismaClientKnownRequestError) {
+//                 if (e.code === "P2025") {
+//                   return null; // Session tidak valid/kadaluarsa, anggap hasilnya null
+//                 }
+//               }
+//               throw e; // Lempar error lain
+//             });
+
+//           // Jika session tidak ditemukan/tidak valid/kadaluarsa, kembalikan null
+//           if (!updatedSession) {
+//             return null;
+//           }
+
+//           // Kembalikan data user dari session yang berhasil diperbarui
+//           return updatedSession.user;
+//         }
+//         // Catatan: isolationLevel tidak perlu diatur, menggunakan default Read Committed sudah cukup
+//         // karena kita sudah memvalidasi dan mengunci baris dalam satu operasi Update.
+//       );
+
+//       // Jika transaksi berhasil, kembalikan hasilnya
+//       return result;
+//     } catch (error) {
+//       // --- Tangani error Deadlock/Write Conflict (P2034) dengan Retry Logic ---
+//       if (
+//         error instanceof Prisma.PrismaClientKnownRequestError &&
+//         error.code === "P2034"
+//       ) {
+//         retries++;
+//         console.warn(
+//           `Write conflict or deadlock (P2034) on session update attempt ${retries}. Retrying...`
+//         );
+
+//         if (retries < maxRetries) {
+//           // Tunggu sejenak sebelum retry (simple exponential backoff)
+//           await sleep(50 * retries);
+//         } else {
+//           console.error(
+//             "Max retries reached for session update. Throwing error.",
+//             error
+//           );
+//           throw error; // Lempar error jika sudah mencapai max retries
+//         }
+//       } else {
+//         // Lempar error lainnya (termasuk error non-Prisma)
+//         console.error(
+//           "Non-retryable error in validateAndUpdateSession:",
+//           error
+//         );
+//         throw error;
+//       }
+//     }
+//   }
+
+//   // Baris ini secara teknis tidak tercapai karena error akan dilempar di dalam loop,
+//   // tetapi ini adalah safety net jika ada kasus edge.
+//   throw new Error("Gagal memperbarui session setelah beberapa percobaan.");
+// }
 // --- Akhir Fungsi Bantu: Validasi & Perbarui Session dengan Transaction dan Retry ---
 
 // --- Fungsi Bantu: Hapus Session ---

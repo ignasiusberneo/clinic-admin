@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { validateAndUpdateSession } from "../../../utils/session"; // Sesuaikan path
 import { cookies } from "next/headers";
 import { PrismaClient } from "@prisma/client";
+import { getUTCDayBoundaries } from "@/utils/api_helpers";
 
 const prisma = new PrismaClient();
 
@@ -24,24 +25,6 @@ async function checkAuthorization(sessionToken) {
 }
 // --- Akhir Fungsi Bantuan ---
 
-// --- Fungsi Bantuan: Dapatkan awal hari dalam zona waktu lokal server ---
-function startOfDayLocal(dateStr) {
-  const date = new Date(dateStr + "T00:00:00");
-  if (isNaN(date.getTime())) {
-    throw new Error("Format tanggal tidak valid untuk startOfDayLocal");
-  }
-  return date;
-}
-// --- Akhir Fungsi Bantuan ---
-
-// --- Fungsi Bantuan: Dapatkan akhir hari dalam zona waktu lokal server ---
-function endOfDayLocal(dateStr) {
-  const date = startOfDayLocal(dateStr);
-  date.setDate(date.getDate() + 1);
-  return date;
-}
-// --- Akhir Fungsi Bantuan ---
-
 // --- Handler GET (Mengambil daftar jadwal) ---
 export async function GET(request) {
   try {
@@ -50,6 +33,12 @@ export async function GET(request) {
     const businessAreaId = searchParams.get("business_area_id");
     const productId = searchParams.get("product_id"); // ID dari tabel `product` (dikirim sebagai service_id dari FE)
     const dateStr = searchParams.get("date"); // Format: YYYY-MM-DD
+    const timezone = searchParams.get("timezone");
+
+    const { startBoundaryUTC, endBoundaryUTC } = getUTCDayBoundaries(
+      dateStr,
+      timezone
+    );
 
     // --- 2. Validasi Parameter Wajib ---
     if (!businessAreaId || !productId || !dateStr) {
@@ -121,8 +110,6 @@ export async function GET(request) {
     // --- Akhir Validasi tambahan (Dikomentari) ---
 
     // --- 6. Persiapan Filter Tanggal (BERDASARKAN ZONA WAKTU LOKAL SERVER) ---
-    const targetDateLocal = startOfDayLocal(dateStr); // <-- Fungsi yang diperbaiki
-    const nextDayLocal = endOfDayLocal(dateStr); // <-- Fungsi yang diperbaiki
 
     // --- 7. Query Database untuk Mendapatkan Jadwal ---
     const schedules = await prisma.schedule.findMany({
@@ -131,8 +118,8 @@ export async function GET(request) {
         product_id: productIdForSchedule,
         start_time: {
           // Asumsikan start_time disimpan dalam zona waktu lokal server
-          gte: targetDateLocal, // Lebih besar atau sama dengan awal hari lokal
-          lt: nextDayLocal, // Kurang dari awal hari berikutnya lokal
+          gte: startBoundaryUTC, // Lebih besar atau sama dengan awal hari lokal
+          lt: endBoundaryUTC, // Kurang dari awal hari berikutnya lokal
         },
       },
       select: {
@@ -256,8 +243,6 @@ export async function POST(request) {
       // c. Validasi format datetime
       const startTime = new Date(sched.start_time);
       const endTime = new Date(sched.end_time);
-
-      console.log(startTime);
 
       if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
         return NextResponse.json(

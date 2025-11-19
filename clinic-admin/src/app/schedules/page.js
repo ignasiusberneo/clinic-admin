@@ -182,6 +182,8 @@ export default function SchedulesPage() {
     fetchProducts();
   }, [selectedClinicId]);
 
+  const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   // --- Fetch schedules berdasarkan filter ---
   const fetchSchedules = useCallback(async () => {
     if (!selectedClinicId || !selectedProductId || !selectedDate) {
@@ -200,7 +202,7 @@ export default function SchedulesPage() {
       const schedulesRes = await fetch(
         `/api/schedules?business_area_id=${selectedClinicId}&product_id=${
           selectedProductId.split("-")[0]
-        }&date=${formattedDate}`
+        }&date=${formattedDate}&timezone=${clientTimezone}`
       );
 
       if (schedulesRes.ok) {
@@ -827,27 +829,27 @@ export default function SchedulesPage() {
                           key={schedule.id}
                           className="hover:bg-green-50 transition duration-150"
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
                             <div className="text-lg font-bold text-green-800">
                               Sesi {index + 1}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
                             <div className="text-lg font-bold text-green-800">
                               {formattedStartTime} - {formattedEndTime}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
                             <div className="text-lg font-bold text-green-800">
                               {schedule.max_quota}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
                             <div className="text-lg font-bold text-green-800">
                               {schedule.remaining_quota}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
                             <div className="text-lg font-bold text-green-800">
                               {schedule.service.name}
                             </div>
@@ -874,7 +876,7 @@ export default function SchedulesPage() {
                             </td>
                           )}
                           {isScheduleFuture && (
-                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <td className="px-4 py-4 whitespace-nowrap text-center">
                               {/* Hapus 'text-right' dari <td>, sisakan 'text-center' (atau kosongkan jika ingin mengikuti TH) */}
 
                               {/* 1. Pembungkus Flexbox: Ubah justify-end menjadi justify-center */}
