@@ -129,7 +129,7 @@ export default function PurchaseEntryModal({
             <p className="text-sm font-semibold text-gray-800">Produk:</p>
             <p className="text-lg font-bold text-green-700">{product.name}</p>
             <p className="text-sm text-gray-600">
-              Supplier: {product.supplier.name}
+              Supplier: {product.supplier ? product.supplier.name : "-"}
             </p>
           </div>
 

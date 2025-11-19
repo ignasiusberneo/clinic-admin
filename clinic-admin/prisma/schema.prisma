@@ -69,8 +69,8 @@ model user {
   created_at       DateTime @default(now())
   updated_at       DateTime @default(now()) @updatedAt
 
-  role          user_role      @relation(fields: [role_id], references: [id], map: "FK_User_Role") // Added map
-  business_area business_area? @relation(fields: [business_area_id], references: [id], map: "FK_User_BusinessArea") // Added map
+  role          user_role      @relation(fields: [role_id], references: [id], onUpdate: Cascade, map: "FK_User_Role") // Added map
+  business_area business_area? @relation(fields: [business_area_id], references: [id], onUpdate: Cascade, map: "FK_User_BusinessArea") // Added map
   sessions      session[]
 
   // Relasi ke employee (one-to-one) - HANYA RELASI BALIK
@@ -87,7 +87,7 @@ model session {
   created_at   DateTime @default(now())
   updated_at   DateTime @default(now()) @updatedAt
 
-  user user @relation(fields: [userId], references: [id], map: "FK_Session_User") // Added map
+  user user @relation(fields: [userId], references: [id], onUpdate: Cascade, map: "FK_Session_User") // Added map
 
   @@map("sessions")
 }
@@ -116,7 +116,7 @@ model product {
   serviceProduct ServiceProduct[]
 
   schedule      schedule[]
-  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_Product_BusinessArea")
+  business_area business_area @relation(fields: [business_area_id], references: [id], onUpdate: Cascade, map: "FK_Product_BusinessArea")
   orderItems    order_item[]
 
   stock     stock?
@@ -151,8 +151,8 @@ model ServiceProduct {
   quantity  Int      @default(1)
   unit_type UnitType @default(LARGE)
 
-  service service @relation(fields: [service_id], references: [id], map: "FK_SP_Service") // Added map
-  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], map: "FK_SP_Product", onUpdate: Cascade) // Added map
+  service service @relation(fields: [service_id], references: [id], onUpdate: Cascade, map: "FK_SP_Service") // Added map
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_SP_Product") // Added map
 
   @@map("service_products")
 }
@@ -171,8 +171,8 @@ model schedule {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_Schedule_BusinessArea")
-  service       service       @relation(fields: [service_id], references: [id], map: "FK_Schedule_Service")
+  business_area business_area @relation(fields: [business_area_id], references: [id], onUpdate: Cascade, map: "FK_Schedule_BusinessArea")
+  service       service       @relation(fields: [service_id], references: [id], onUpdate: Cascade, map: "FK_Schedule_Service")
 
   product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_Schedule_Product") // Added map
 
@@ -203,8 +203,8 @@ model patient {
   referral_id       Int?
 
   // Definisikan relasi
-  referral_type  referral_type    @relation(fields: [referral_type_id], references: [id], map: "FK_Patient_ReferralType") // Added map
-  referred_by    patient?         @relation("PatientReferral", fields: [referral_id], references: [id], map: "FK_Patient_ReferredBy") // Added map
+  referral_type  referral_type    @relation(fields: [referral_type_id], references: [id], onUpdate: Cascade, map: "FK_Patient_ReferralType") // Added map
+  referred_by    patient?         @relation("PatientReferral", fields: [referral_id], references: [id], onUpdate: Cascade, map: "FK_Patient_ReferredBy") // Added map
   referrals      patient[]        @relation("PatientReferral")
   medical_record medical_record[]
 
@@ -221,7 +221,7 @@ model order {
   created_at        DateTime         @default(now())
   updated_at        DateTime         @default(now()) @updatedAt
 
-  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_Order_BusinessArea") // Added map
+  business_area business_area @relation(fields: [business_area_id], references: [id], onUpdate: Cascade, map: "FK_Order_BusinessArea") // Added map
 
   order_items   order_item[]
   order_payment order_payment[]
@@ -247,9 +247,9 @@ model order_item {
 
   product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_OrderItem_Product")
 
-  order          order            @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_OrderItem_Order") // Added map
-  schedule       schedule?        @relation(fields: [schedule_id], references: [id], map: "FK_OrderItem_Schedule") // Added map
-  service        service?         @relation(fields: [service_id], references: [id], map: "FK_OrderItem_Service")
+  order          order            @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_OrderItem_Order") // Added map
+  schedule       schedule?        @relation(fields: [schedule_id], references: [id], onUpdate: Cascade, map: "FK_OrderItem_Schedule") // Added map
+  service        service?         @relation(fields: [service_id], references: [id], onUpdate: Cascade, map: "FK_OrderItem_Service")
   medical_record medical_record[]
 
   @@map("order_items")
@@ -274,7 +274,7 @@ model order_payment {
   updated_at        DateTime @default(now()) @updatedAt
 
   // PERBAIKAN: Menambahkan `map` untuk mencegah konflik penamaan FK di MySQL
-  order          order          @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_OrderPayment_Order")
+  order          order          @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_OrderPayment_Order")
   payment_method payment_method @relation(fields: [payment_method_id], references: [id], onUpdate: Cascade, map: "FK_OrderPayment_PaymentMethod")
 
   @@map("order_payments")
@@ -295,9 +295,9 @@ model medical_record {
   updated_at           DateTime @default(now()) @updatedAt
 
   // Definisikan relasi
-  patient    patient    @relation(fields: [patient_id], references: [id], map: "FK_MedicalRecord_Patient") // Added map
-  schedule   schedule   @relation(fields: [schedule_id], references: [id], map: "FK_MedicalRecord_Schedule") // Added map
-  order_item order_item @relation(fields: [order_item_id], references: [id], map: "FK_MedicalRecord_OrderItem") // Added map
+  patient    patient    @relation(fields: [patient_id], references: [id], onUpdate: Cascade, map: "FK_MedicalRecord_Patient") // Added map
+  schedule   schedule   @relation(fields: [schedule_id], references: [id], onUpdate: Cascade, map: "FK_MedicalRecord_Schedule") // Added map
+  order_item order_item @relation(fields: [order_item_id], references: [id], onUpdate: Cascade, map: "FK_MedicalRecord_OrderItem") // Added map
 
   @@map("medical_records")
 }
@@ -309,7 +309,7 @@ model employee_title {
 
   employees employee[]
 
-  business_area business_area @relation(fields: [business_area_id], references: [id], map: "FK_EmployeeTitle_BusinessArea") // Added map
+  business_area business_area @relation(fields: [business_area_id], references: [id], onUpdate: Cascade, map: "FK_EmployeeTitle_BusinessArea") // Added map
 
   @@map("employee_titles")
 }
@@ -329,11 +329,11 @@ model employee {
   created_at        DateTime @default(now())
   updated_at        DateTime @default(now()) @updatedAt
 
-  business_area  business_area? @relation(fields: [business_area_id], references: [id], map: "FK_Employee_BusinessArea")
-  employee_title employee_title @relation(fields: [employee_title_id], references: [id], map: "FK_Employee_Title")
+  business_area  business_area? @relation(fields: [business_area_id], references: [id], onUpdate: Cascade, map: "FK_Employee_BusinessArea")
+  employee_title employee_title @relation(fields: [employee_title_id], references: [id], onUpdate: Cascade, map: "FK_Employee_Title")
 
   // Relasi One-to-One ke user, menggunakan user.id (Int) sebagai Foreign Key
-  user    user? @relation(fields: [user_id], references: [id], map: "FK_Employee_User")
+  user    user? @relation(fields: [user_id], references: [id], onUpdate: Cascade, map: "FK_Employee_User")
   user_id Int?  @unique // Foreign Key ke user.id
 
   @@map("employees")
@@ -386,10 +386,10 @@ model role_permission {
   created_at DateTime @default(now())
 
   // Relasi ke model user_role
-  role user_role @relation(fields: [role_id], references: [id], map: "FK_RP_Role", onDelete: Cascade)
+  role user_role @relation(fields: [role_id], references: [id], onUpdate: Cascade, map: "FK_RP_Role", onDelete: Cascade)
 
   // Relasi ke model permission
-  permission permission @relation(fields: [permission_id], references: [id], map: "FK_RP_Permission", onDelete: Cascade)
+  permission permission @relation(fields: [permission_id], references: [id], onUpdate: Cascade, map: "FK_RP_Permission", onDelete: Cascade)
 
   // Primary Key ganda (Compound ID) untuk memastikan kombinasi unik
   @@id([role_id, permission_id])
@@ -407,7 +407,7 @@ model purchase {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], map: "FK_Purchase_Product")
+  product product @relation(fields: [product_id, product_business_area_id], references: [id, business_area_id], onUpdate: Cascade, map: "FK_Purchase_Product")
 
   @@map("purchases")
 }
