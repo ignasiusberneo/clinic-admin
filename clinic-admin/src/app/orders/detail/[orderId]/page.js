@@ -911,7 +911,7 @@ export default function OrderDetailPage() {
         {/* Tombol Kembali */}
         <div className="flex justify-end">
           <button
-            onClick={() => router.push("/orders")}
+            onClick={() => router.push("/schedules")}
             className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
           >
             Kembali

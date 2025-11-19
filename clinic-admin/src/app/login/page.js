@@ -14,7 +14,7 @@ async function checkLoggedInAndRedirect() {
   const sessionToken = (await cookies()).get("sessionToken")?.value;
 
   if (sessionToken) {
-    redirect("/");
+    redirect("/schedules");
   }
 }
 

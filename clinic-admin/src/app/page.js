@@ -16,6 +16,7 @@ export default function DashboardPage() {
         const data = await res.json();
 
         if (res.status === 200 && data.authenticated) {
+          router.push("/schedules");
           setUser(data.user);
         } else {
           await fetch("/api/logout", { method: "POST" });

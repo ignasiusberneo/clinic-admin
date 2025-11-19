@@ -27,7 +27,7 @@ export default function LoginForm() {
 
       if (res.ok) {
         // ✅ Full reload agar server baca cookie baru
-        window.location.href = "/";
+        window.location.href = "/schedules";
       } else {
         setError(data.message || "Login gagal");
       }
