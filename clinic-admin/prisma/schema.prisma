@@ -195,7 +195,7 @@ model patient {
   id                Int      @id @default(autoincrement())
   full_name         String
   gender            String
-  date_of_birth     DateTime
+  date_of_birth     DateTime?
   whatsapp_number   String?
   address           String?
   registration_date DateTime @default(now())
