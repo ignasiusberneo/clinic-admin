@@ -27,11 +27,10 @@ export default function Navbar({ username, permissions }) {
   };
 
   const navLinksData = [
-    { href: "/", label: "Dashboard", permission: null },
-    { href: "/schedules", label: "Jadwal", permission: null },
+    { href: "/schedules", label: "Jadwal Layanan", permission: null },
     { href: "/clinics", label: "Klinik", permission: "CLINIC_ACCESS" },
-    { href: "/orders", label: "Pesanan", permission: null },
-    { href: "/services", label: "Layanan", permission: "SERVICE_ACCESS" },
+    { href: "/orders", label: "Kasir", permission: "CASHIER_ACCESS" },
+    { href: "/services", label: "Setup Layanan", permission: "SERVICE_ACCESS" },
     { href: "/employees", label: "Karyawan", permission: "EMPLOYEE_ACCESS" },
   ];
 

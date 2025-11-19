@@ -84,9 +84,8 @@ export default function StocksPage() {
       const sessionData = await sessionRes.json();
 
       if (sessionRes.status !== 200 || !sessionData.authenticated) {
+        await fetch("/api/logout", { method: "POST" });
         router.push("/login");
-        router.refresh();
-        return;
       }
 
       setUserPermissions(sessionData.user.permissions);

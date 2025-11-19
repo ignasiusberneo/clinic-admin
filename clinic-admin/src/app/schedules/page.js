@@ -103,9 +103,7 @@ export default function SchedulesPage() {
 
       if (sessionRes.status !== 200 || !sessionData.authenticated) {
         await fetch("/api/logout", { method: "POST" });
-        alert("Sesi telah berakhir. Silakan login kembali.");
         router.push("/login");
-        router.refresh();
         return;
       }
 
@@ -795,12 +793,14 @@ export default function SchedulesPage() {
                           Edit
                         </th>
                       )}
-                      <th
-                        scope="col"
-                        className="px-6 py-3 text-center text-xs font-semibold text-green-700 uppercase tracking-wider"
-                      >
-                        Aksi
-                      </th>
+                      {userPermissions.includes("CASHIER_ACCESS") && (
+                        <th
+                          scope="col"
+                          className="px-6 py-3 text-center text-xs font-semibold text-green-700 uppercase tracking-wider"
+                        >
+                          Aksi
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -875,67 +875,69 @@ export default function SchedulesPage() {
                               </button>
                             </td>
                           )}
-                          {isScheduleFuture && (
-                            <td className="px-4 py-4 whitespace-nowrap text-center">
-                              {/* Hapus 'text-right' dari <td>, sisakan 'text-center' (atau kosongkan jika ingin mengikuti TH) */}
+                          {isScheduleFuture &&
+                            userPermissions.includes("CASHIER_ACCESS") && (
+                              <td className="px-4 py-4 whitespace-nowrap text-center">
+                                {/* Hapus 'text-right' dari <td>, sisakan 'text-center' (atau kosongkan jika ingin mengikuti TH) */}
 
-                              {/* 1. Pembungkus Flexbox: Ubah justify-end menjadi justify-center */}
-                              <div className="flex items-center justify-center space-x-2">
-                                {/* 2. Input Quantity */}
-                                {schedule.remaining_quota > 0 && (
-                                  <input
-                                    type="text"
-                                    value={schedule.quantity}
-                                    onChange={(e) =>
-                                      handleQuantityChange(
+                                {/* 1. Pembungkus Flexbox: Ubah justify-end menjadi justify-center */}
+                                <div className="flex items-center justify-center space-x-2">
+                                  {/* 2. Input Quantity */}
+                                  {schedule.remaining_quota > 0 && (
+                                    <input
+                                      type="text"
+                                      value={schedule.quantity}
+                                      onChange={(e) =>
+                                        handleQuantityChange(
+                                          schedule.id,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-center shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                                      disabled={schedule.remaining_quota === 0}
+                                    />
+                                  )}
+
+                                  {/* 3. Tombol Book */}
+                                  <button
+                                    onClick={() =>
+                                      openBookScheduleModal(
                                         schedule.id,
-                                        e.target.value
+                                        schedule.quantity,
+                                        schedule.service_id
                                       )
                                     }
-                                    className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-center shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                                    disabled={schedule.remaining_quota === 0}
-                                  />
-                                )}
-
-                                {/* 3. Tombol Book */}
+                                    disabled={
+                                      schedule.remaining_quota <= 0 ||
+                                      !schedule.quantity
+                                    }
+                                    className={`py-2 px-4 rounded-lg shadow-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 ${
+                                      schedule.remaining_quota > 0 &&
+                                      schedule.quantity // Menggunakan remaining_quota untuk styling, karena quantity selalu minimal 1 jika kuota > 0
+                                        ? "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"
+                                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                    }`}
+                                  >
+                                    {schedule.remaining_quota > 0
+                                      ? "Book"
+                                      : "Full"}
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          {!isScheduleFuture &&
+                            userPermissions.includes("CASHIER_ACCESS") && (
+                              <td className="text-center">
                                 <button
                                   onClick={() =>
-                                    openBookScheduleModal(
-                                      schedule.id,
-                                      schedule.quantity,
-                                      schedule.service_id
-                                    )
+                                    handleOpenOrderListModal(schedule.id)
                                   }
-                                  disabled={
-                                    schedule.remaining_quota <= 0 ||
-                                    !schedule.quantity
-                                  }
-                                  className={`py-2 px-4 rounded-lg shadow-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 ${
-                                    schedule.remaining_quota > 0 &&
-                                    schedule.quantity // Menggunakan remaining_quota untuk styling, karena quantity selalu minimal 1 jika kuota > 0
-                                      ? "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"
-                                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                  }`}
+                                  className="py-2 px-4 rounded-lg shadow-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 bg-blue-600 text-white hover:bg-blue-500 focus:ring-green-500"
                                 >
-                                  {schedule.remaining_quota > 0
-                                    ? "Book"
-                                    : "Full"}
+                                  List Order
                                 </button>
-                              </div>
-                            </td>
-                          )}
-                          {!isScheduleFuture && (
-                            <td className="text-center">
-                              <button
-                                onClick={() =>
-                                  handleOpenOrderListModal(schedule.id)
-                                }
-                                className="py-2 px-4 rounded-lg shadow-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 bg-blue-600 text-white hover:bg-blue-500 focus:ring-green-500"
-                              >
-                                List Order
-                              </button>
-                            </td>
-                          )}
+                              </td>
+                            )}
                         </tr>
                       );
                     })}

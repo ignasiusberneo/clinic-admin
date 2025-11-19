@@ -37,8 +37,8 @@ export default function ServicesPage() {
       const sessionData = await sessionRes.json();
 
       if (sessionRes.status !== 200 || !sessionData.authenticated) {
-        router.push("/schedules");
-        return;
+        await fetch("/api/logout", { method: "POST" });
+        router.push("/login");
       }
 
       const userPermissions = sessionData.user.permissions;

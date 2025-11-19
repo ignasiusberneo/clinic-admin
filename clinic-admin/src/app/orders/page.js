@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import AddOrderModal from "./AddOrderModal";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -10,6 +11,8 @@ export default function OrdersPage() {
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState(""); // State untuk input pencarian
+  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
+  const [userPermissions, setUserPermissions] = useState([]);
 
   const router = useRouter();
 
@@ -49,22 +52,37 @@ export default function OrdersPage() {
     }
   }, [searchQuery, router]); // Tambahkan searchQuery ke dependency array agar fetch ulang saat query berubah
 
+  const handleCloseModal = () => {
+    setIsAddOrderModalOpen(false);
+  };
+
   const checkSession = async () => {
-    setLoadingSession(true);
-    const sessionRes = await fetch("/api/check-session");
-    const sessionData = await sessionRes.json();
+    try {
+      setLoading(true);
+      const sessionRes = await fetch("/api/check-session");
+      const sessionData = await sessionRes.json();
 
-    if (sessionRes.status !== 200 || !sessionData.authenticated) {
-      router.push("/login");
-      router.refresh();
-      return;
+      if (sessionRes.status !== 200 || !sessionData.authenticated) {
+        await fetch("/api/logout", { method: "POST" });
+        router.push("/login");
+      }
+
+      const userPermissions = sessionData.user.permissions;
+      if (!userPermissions.includes("CASHIER_ACCESS")) {
+        router.push("/schedules");
+        return;
+      }
+
+      setUserPermissions(userPermissions);
+    } catch (error) {
+      console.error("Error checking session:", error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoadingSession(false);
   };
 
   useEffect(() => {
-    checkSession;
+    checkSession();
   }, []);
 
   // --- 2. Handler untuk perubahan input pencarian ---
@@ -102,7 +120,17 @@ export default function OrdersPage() {
   return (
     <div className="p-6 bg-green-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold text-green-900 mb-6">Daftar Order</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-green-900 mb-6">
+            Daftar Order
+          </h1>
+          <button
+            onClick={() => setIsAddOrderModalOpen(true)}
+            className="px-4 py-2 font-semibold bg-green-500 text-white rounded-md hover:bg-green-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+          >
+            Buat Order
+          </button>
+        </div>
 
         {/* --- Form Pencarian --- */}
         <div className="mb-6">
@@ -254,6 +282,11 @@ export default function OrdersPage() {
         )}
         {/* --- Akhir Tabel Daftar Orders --- */}
       </div>
+      <AddOrderModal
+        isOpen={isAddOrderModalOpen}
+        onClose={handleCloseModal}
+        router={router}
+      />
     </div>
   );
 }
