@@ -199,7 +199,7 @@ model patient {
   whatsapp_number   String?
   address           String?
   registration_date DateTime @default(now())
-  referral_type_id  Int
+  referral_type_id  Int @default(4)
   referral_id       Int?
 
   // Definisikan relasi
