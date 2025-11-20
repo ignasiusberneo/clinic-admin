@@ -320,6 +320,8 @@ export async function GET(request) {
     }
 
     if (scheduleId) {
+      whereClause.status = { not: "CANCELLED" };
+      whereClause.attendance_status = "PENDING";
       whereClause.order_items = {
         some: {
           schedule_id: parseInt(scheduleId),

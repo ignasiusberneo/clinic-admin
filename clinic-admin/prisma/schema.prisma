@@ -411,3 +411,20 @@ model purchase {
 
   @@map("purchases")
 }
+
+model schedule_template {
+  id                      Int      @id @default(autoincrement())
+  product_id              Int
+  business_area_id        Int
+  
+  // Menyimpan jam saja sebagai String (format "HH:mm")
+  start_time_str          String   // Contoh: "09:00"
+  end_time_str            String   // Contoh: "10:00"
+  
+  max_quota       Int      @default(10)
+
+  is_end_time_next_day  Boolean @default(false)
+
+  @@index([business_area_id, product_id])
+  @@map("schedule_templates")
+}

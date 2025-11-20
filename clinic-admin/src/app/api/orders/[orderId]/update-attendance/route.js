@@ -64,6 +64,7 @@ export async function PATCH(request, { params }) {
         where: { id },
         select: {
           status: true,
+          attendance_status: true,
           order_items: {
             select: {
               schedule_id: true,
@@ -88,17 +89,23 @@ export async function PATCH(request, { params }) {
         throw new Error("Order tidak ditemukan saat transaksi berjalan.");
       }
 
-      if (orderInTx.status === "NO_SHOW") {
+      if (orderInTx.attendance_status === "NO_SHOW") {
         throw new Error(
-          "Order sudah dinyatakan tidak datang saat transaksi berjalan."
+          "Pasien di order ini sudah dinyatakan tidak datang saat transaksi berjalan."
         );
+      }
+
+      const dataToUpdate = {
+        attendance_status: "NO_SHOW",
+      };
+
+      if (orderInTx.status === "BELUM BAYAR") {
+        dataToUpdate.status = "CANCELLED";
       }
 
       const updatedOrder = await tx.order.update({
         where: { id },
-        data: {
-          attendance_status: "NO_SHOW", // Asumsi NO_SHOW jika dibatalkan
-        },
+        data: dataToUpdate,
         select: {
           id: true,
           total_price: true,

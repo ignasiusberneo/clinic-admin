@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import Link from "next/link";
 import ChangeServiceModal from "./ChangeServiceModal";
 import OrderListModal from "./OrderListModal";
 
@@ -14,6 +13,7 @@ export default function SchedulesPage() {
   const [schedules, setSchedules] = useState([]);
   const [selectedClinicId, setSelectedClinicId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedProductName, setSelectedProductName] = useState("");
   // Pastikan DatePicker menggunakan waktu lokal saat diinisialisasi
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -27,6 +27,9 @@ export default function SchedulesPage() {
   const [scheduleToEdit, setScheduleToEdit] = useState(null);
   const [isOrderListModalOpen, setIsOrderListModalOpen] = useState(false);
   const [orderScheduleId, setOrderScheduleId] = useState(null);
+  const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] =
+    useState(false);
+  const [isCreatingBook, setIsCreatingBook] = useState(false);
 
   // --- State untuk modal tambah jadwal ---
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
@@ -164,6 +167,7 @@ export default function SchedulesPage() {
             console.log(uniqueKey);
 
             setSelectedProductId(uniqueKey);
+            setSelectedProductName(productsData[0].name);
           }
         } else {
           setProductsError("Gagal memuat daftar layanan untuk klinik ini.");
@@ -248,6 +252,15 @@ export default function SchedulesPage() {
 
   const handleProductChange = (e) => {
     const productId = e.target.value;
+    const foundProduct = products.find((product) => {
+      const tempId = parseInt(productId.split("-")[0]);
+      const tempBusinessAreaId = parseInt(productId.split("-")[1]);
+      return (
+        product.id === tempId && product.business_area_id === tempBusinessAreaId
+      );
+    });
+    setSelectedProductName(foundProduct.name);
+
     setSelectedProductId(productId);
   };
 
@@ -330,6 +343,7 @@ export default function SchedulesPage() {
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
+    setIsCreatingBook(true);
 
     try {
       const orderData = {
@@ -372,6 +386,8 @@ export default function SchedulesPage() {
       if (res.ok) {
         const orderId = responseData.id;
         alert("Order berhasil dibuat!");
+        setIsBookModalOpen(false);
+
         router.push(`/orders/detail/${orderId}`);
       } else {
         const errorMessage =
@@ -384,7 +400,7 @@ export default function SchedulesPage() {
       setIsBookModalOpen(false);
       fetchSchedules(); // Panggil ulang untuk mendapatkan kuota terbaru
     } finally {
-      // setSubmitting(false); // Reset loading state
+      setIsCreatingBook(false);
     }
   };
 
@@ -429,121 +445,19 @@ export default function SchedulesPage() {
     setBulkSchedules(updatedSchedules);
   };
 
+  const isAddScheduleButtonDisabled =
+    !selectedClinicId || !selectedProductId || schedules.length > 0;
   // --- Fungsi untuk menambah jadwal ---
   const handleAddSchedule = async (e) => {
+    console.log("MASUKK");
     e.preventDefault();
     setIsAdding(true);
-    setAddScheduleError(null);
 
     try {
-      let schedulesToSubmit = [];
-      const dateForSchedule = selectedDate; // Tanggal yang dipilih
-
-      if (isBulkMode) {
-        // Validasi dan pemetaan untuk mode bulk
-        if (
-          bulkSchedules.some(
-            (s) => !s.start_time || !s.end_time || s.max_quota === ""
-          )
-        ) {
-          throw new Error(
-            "Semua jadwal bulk harus memiliki waktu mulai, waktu selesai, dan kuota maksimal."
-          );
-        }
-
-        for (let i = 0; i < bulkSchedules.length; i++) {
-          const sched = bulkSchedules[i];
-          const fullStartDateTime = combineDateAndTime(
-            dateForSchedule,
-            sched.start_time
-          );
-          const fullEndDateTime = combineDateAndTime(
-            dateForSchedule,
-            sched.end_time
-          );
-
-          if (!fullStartDateTime || !fullEndDateTime) {
-            throw new Error(
-              `Gagal memproses waktu untuk jadwal baris ${i + 1}.`
-            );
-          }
-
-          const startDateObj = new Date(fullStartDateTime);
-          const endDateObj = new Date(fullEndDateTime);
-
-          if (startDateObj >= endDateObj) {
-            throw new Error(
-              `Waktu selesai harus setelah waktu mulai untuk jadwal baris ${
-                i + 1
-              }.`
-            );
-          }
-
-          if (parseInt(sched.max_quota, 10) < 1) {
-            throw new Error(
-              `Kuota maksimal harus lebih dari 0 untuk jadwal baris ${i + 1}.`
-            );
-          }
-
-          schedulesToSubmit.push({
-            business_area_id: selectedClinicId,
-            product_id: selectedProductId.split("-")[0],
-            start_time: fullStartDateTime,
-            end_time: fullEndDateTime,
-            max_quota: parseInt(sched.max_quota, 10),
-          });
-        }
-      } else {
-        // Validasi dan pemetaan untuk mode single
-        if (
-          !singleSchedule.start_time ||
-          !singleSchedule.end_time ||
-          singleSchedule.max_quota === ""
-        ) {
-          throw new Error(
-            "Jadwal harus memiliki waktu mulai, waktu selesai, dan kuota maksimal."
-          );
-        }
-
-        const fullStartDateTime = combineDateAndTime(
-          dateForSchedule,
-          singleSchedule.start_time
-        );
-        const fullEndDateTime = combineDateAndTime(
-          dateForSchedule,
-          singleSchedule.end_time
-        );
-
-        if (!fullStartDateTime || !fullEndDateTime) {
-          throw new Error(`Gagal memproses waktu untuk jadwal.`);
-        }
-
-        const startDateObj = new Date(fullStartDateTime);
-        const endDateObj = new Date(fullEndDateTime);
-
-        if (startDateObj >= endDateObj) {
-          throw new Error("Waktu selesai harus setelah waktu mulai.");
-        }
-
-        if (parseInt(singleSchedule.max_quota, 10) < 1) {
-          throw new Error("Kuota maksimal harus lebih dari 0.");
-        }
-
-        schedulesToSubmit = [
-          {
-            business_area_id: selectedClinicId,
-            product_id: selectedProductId.split("-")[0],
-            start_time: fullStartDateTime,
-            end_time: fullEndDateTime,
-            max_quota: parseInt(singleSchedule.max_quota, 10),
-          },
-        ];
-      }
-
       const body = {
         product_id: selectedProductId.split("-")[0],
         business_area_id: selectedClinicId,
-        schedules: schedulesToSubmit,
+        target_date: formatLocalDate(selectedDate),
       };
 
       // --- Pengiriman data ke API ---
@@ -572,7 +486,7 @@ export default function SchedulesPage() {
         alert("Jadwal berhasil ditambahkan!");
         fetchSchedules();
 
-        closeAddScheduleModal();
+        setIsCreateScheduleModalOpen(false);
       } else {
         const errorMessage =
           responseData.error ||
@@ -706,10 +620,10 @@ export default function SchedulesPage() {
           {userPermissions.includes("ADD_SCHEDULE") && (
             <div className="flex items-end">
               <button
-                onClick={openAddScheduleModal}
-                disabled={!selectedClinicId || !selectedProductId}
+                onClick={() => setIsCreateScheduleModalOpen(true)}
+                disabled={isAddScheduleButtonDisabled}
                 className={`w-full py-2 px-4 rounded-lg shadow-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 ${
-                  selectedClinicId && selectedProductId
+                  !isAddScheduleButtonDisabled
                     ? "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
@@ -1210,9 +1124,60 @@ export default function SchedulesPage() {
               </button>
               <button
                 onClick={handleSubmitOrder}
-                className="py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
+                disabled={isCreatingBook}
+                className={`py-2 px-4 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 transition ${
+                  isCreatingBook
+                    ? "bg-gray-400 text-white cursor-not-allowed"
+                    : "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"
+                }`}
               >
-                Konfirmasi
+                {isCreatingBook ? "Memproses..." : "Konfirmasi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCreateScheduleModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 overflow-y-auto backdrop-blur-sm">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-sm mx-auto p-6">
+            {/* Header Modal */}
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">
+              Konfirmasi Pembuatan Jadwal
+            </h3>
+            <button
+              onClick={closeAddScheduleModal}
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition"
+            >
+              &times;
+            </button>
+
+            {/* Body / Pesan Konfirmasi */}
+            <div className="text-gray-700 mb-6">
+              Anda akan membuat jadwal {selectedProductName} untuk jadwal
+              tanggal {formatLocalDate(selectedDate)}.
+              <p className="mt-2 text-sm text-gray-500">
+                Lanjutkan proses pembuatan jadwal?
+              </p>
+            </div>
+
+            {/* Footer / Tombol Aksi */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setIsCreateScheduleModalOpen(false)}
+                className="py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleAddSchedule}
+                disabled={isAdding}
+                className={`py-2 px-4 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 transition ${
+                  isAdding
+                    ? "bg-gray-400 text-white cursor-not-allowed"
+                    : "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"
+                }`}
+              >
+                {isAdding ? "Memproses..." : "Konfirmasi"}
               </button>
             </div>
           </div>

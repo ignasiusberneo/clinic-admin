@@ -144,7 +144,7 @@ export default function OrderListModal({ isOpen, onClose, scheduleId }) {
           ) : orders.length === 0 ? (
             <div className="text-center p-10 bg-gray-50 dark:bg-gray-700 rounded-xl">
               <p className="text-gray-500 dark:text-gray-400">
-                Tidak ada ada pesanan.
+                Tidak ada pesanan.
               </p>
             </div>
           ) : (
