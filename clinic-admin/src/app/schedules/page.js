@@ -164,7 +164,6 @@ export default function SchedulesPage() {
           setProducts(productsData);
           if (productsData.length > 0 && selectedProductId === "") {
             const uniqueKey = `${productsData[0].id}-${productsData[0].business_area_id}`;
-            console.log(uniqueKey);
 
             setSelectedProductId(uniqueKey);
             setSelectedProductName(productsData[0].name);
@@ -212,6 +211,10 @@ export default function SchedulesPage() {
         const schedulesWithQuantity = schedulesData.map((schedule) => ({
           ...schedule,
           quantity: "",
+          productVariantId:
+            schedule.product.productVariants.length > 0
+              ? `${schedule.product.productVariants[0].id}-${schedule.product.productVariants[0].product_id}-${schedule.product.productVariants[0].product_business_area_id}`
+              : "",
         }));
 
         setSchedules(schedulesWithQuantity);
@@ -264,12 +267,18 @@ export default function SchedulesPage() {
     setSelectedProductId(productId);
   };
 
-  const openBookScheduleModal = (scheduleId, quantity, serviceId) => {
+  const openBookScheduleModal = (
+    scheduleId,
+    quantity,
+    serviceId,
+    variantId
+  ) => {
     // Simpan ID dan Quantity yang dipilih
     setSelectedSchedule({
       id: scheduleId,
       quantity: quantity,
       service_id: serviceId,
+      productVariantId: variantId,
     });
     setIsBookModalOpen(true);
   };
@@ -321,6 +330,21 @@ export default function SchedulesPage() {
       });
     });
   };
+  const handleVariantChange = (scheduleId, newVariantId) => {
+    setSchedules((prevSchedules) => {
+      return prevSchedules.map((schedule) => {
+        if (schedule.id === scheduleId) {
+          const max = schedule.remaining_quota;
+
+          return {
+            ...schedule,
+            productVariantId: newVariantId,
+          };
+        }
+        return schedule;
+      });
+    });
+  };
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
@@ -351,6 +375,7 @@ export default function SchedulesPage() {
         schedule_id: parseInt(selectedSchedule.id), // Kirim ID jadwal yang dipilih
         quantity: parseInt(selectedSchedule.quantity), // Kirim jumlah pasien
         service_id: parseInt(selectedSchedule.service_id),
+        variant_id: selectedSchedule.productVariantId,
       };
 
       const res = await fetch("/api/orders", {
@@ -446,7 +471,10 @@ export default function SchedulesPage() {
   };
 
   const isAddScheduleButtonDisabled =
-    !selectedClinicId || !selectedProductId || schedules.length > 0;
+    !selectedClinicId ||
+    !selectedProductId ||
+    schedules.length > 0 ||
+    loadingSchedules;
   // --- Fungsi untuk menambah jadwal ---
   const handleAddSchedule = async (e) => {
     console.log("MASUKK");
@@ -764,18 +792,56 @@ export default function SchedulesPage() {
                             </div>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-center">
-                            <div className="text-lg font-bold text-green-800">
-                              {schedule.service.name}
-                            </div>
-                            <div className="text-lg font-bold text-green-800">
-                              (
-                              {new Intl.NumberFormat("id-ID", {
-                                style: "currency",
-                                currency: "IDR",
-                                minimumFractionDigits: 0,
-                              }).format(schedule.service.price)}
-                              )
-                            </div>
+                            {schedule.product.productVariants.length === 0 && (
+                              <div className="text-lg font-bold text-green-800">
+                                {schedule.service.name}
+                              </div>
+                            )}
+                            {schedule.product.productVariants.length > 0 && (
+                              // <div className="text-lg font-bold text-green-800">
+                              <select
+                                value={schedule.productVariantId}
+                                onChange={(e) =>
+                                  handleVariantChange(
+                                    schedule.id,
+                                    e.target.value
+                                  )
+                                }
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 transition duration-150"
+                              >
+                                {schedule.product.productVariants.map(
+                                  (variant) => {
+                                    const uniqueKey = `${variant.id}-${variant.product_id}-${variant.product_business_area_id}`;
+                                    const formattedPrice =
+                                      new Intl.NumberFormat("id-ID", {
+                                        style: "currency",
+                                        currency: "IDR",
+                                        minimumFractionDigits: 0,
+                                      }).format(
+                                        schedule.service.price + variant.price
+                                      );
+
+                                    return (
+                                      <option key={uniqueKey} value={uniqueKey}>
+                                        {`${variant.name} (${formattedPrice})`}
+                                      </option>
+                                    );
+                                  }
+                                )}
+                              </select>
+                              // </div>
+                            )}
+                            {schedule.product.productVariants.length === 0 && (
+                              <div className="text-lg font-bold text-green-800">
+                                (
+                                {new Intl.NumberFormat("id-ID", {
+                                  style: "currency",
+                                  currency: "IDR",
+                                  minimumFractionDigits: 0,
+                                }).format(schedule.service.price)}
+                                )
+                              </div>
+                            )}
                           </td>
                           {userPermissions.includes(
                             "CHANGE_SCHEDULE_SERVICE"
@@ -818,7 +884,8 @@ export default function SchedulesPage() {
                                       openBookScheduleModal(
                                         schedule.id,
                                         schedule.quantity,
-                                        schedule.service_id
+                                        schedule.service_id,
+                                        schedule.productVariantId
                                       )
                                     }
                                     disabled={
@@ -1125,7 +1192,7 @@ export default function SchedulesPage() {
               <button
                 onClick={handleSubmitOrder}
                 disabled={isCreatingBook}
-                className={`py-2 px-4 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 transition ${
+                className={`py-2 px-4 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition ${
                   isCreatingBook
                     ? "bg-gray-400 text-white cursor-not-allowed"
                     : "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"
@@ -1171,7 +1238,7 @@ export default function SchedulesPage() {
               <button
                 onClick={handleAddSchedule}
                 disabled={isAdding}
-                className={`py-2 px-4 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 transition ${
+                className={`py-2 px-4 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition ${
                   isAdding
                     ? "bg-gray-400 text-white cursor-not-allowed"
                     : "bg-green-600 text-white hover:bg-green-500 focus:ring-green-500"

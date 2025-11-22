@@ -69,7 +69,8 @@ export async function POST(request) {
 
     // --- 2. Parsing Body Request ---
     const body = await request.json();
-    const { business_area_id, service_id, schedule_id, quantity } = body;
+    const { business_area_id, service_id, schedule_id, quantity, variant_id } =
+      body;
 
     // --- 3. Validasi Input ---
     if (!business_area_id || !service_id || !schedule_id || quantity == null) {
@@ -86,6 +87,16 @@ export async function POST(request) {
     const parsedServiceId = parseInt(service_id);
     const parsedScheduleId = parseInt(schedule_id);
     const parsedQuantity = parseInt(quantity);
+
+    let parsedVariantId;
+    let parsedVariantProductId;
+    let parsedVariantBusinessAreaId;
+
+    if (variant_id) {
+      parsedVariantId = parseInt(variant_id.split("-")[0]);
+      parsedVariantProductId = parseInt(variant_id.split("-")[1]);
+      parsedVariantBusinessAreaId = parseInt(variant_id.split("-")[2]);
+    }
 
     if (
       isNaN(parsedBusinessAreaId) ||
@@ -177,7 +188,25 @@ export async function POST(request) {
         );
       }
 
-      const itemPrice = serviceRecord.price; // Ambil harga dari service
+      let variantRecord;
+      if (variant_id) {
+        variantRecord = await tx.product_variant.findUnique({
+          where: {
+            id_product_id_product_business_area_id: {
+              id: parsedVariantId,
+              product_id: parsedVariantProductId,
+              product_business_area_id: parsedVariantBusinessAreaId,
+            },
+          },
+          select: {
+            price: true,
+          },
+        });
+      }
+
+      const itemPrice = variant_id
+        ? serviceRecord.price + variantRecord.price
+        : serviceRecord.price; // Ambil harga dari service
 
       // d. Kurangi remaining_quota jadwal
       const updatedSchedule = await tx.schedule.update({
@@ -211,21 +240,41 @@ export async function POST(request) {
         },
       });
 
-      const orderItemsData = serviceRecord.productService.map((item) => ({
-        order_id: newOrder.id,
-        product_id: item.product.id,
-        product_business_area_id: item.product.business_area_id,
-        schedule_id: item.product.type === "SERVICE" ? parsedScheduleId : null,
-        quantity: parsedQuantity * item.quantity,
-        unit_used: item.unit_type,
-        price:
-          item.unit_type === "LARGE"
-            ? item.product.tariff
-            : item.product.small_unit_tariff,
-        service_id: parsedServiceId,
-        service_price: serviceRecord.price,
-        service_quantity: parsedQuantity,
-      }));
+      const orderItemsData = serviceRecord.productService.map((item) => {
+        let sumPrice;
+        if (variant_id) {
+          if (item.product.type === "SERVICE") {
+            sumPrice = itemPrice + variantRecord.price;
+          } else {
+            sumPrice = itemPrice;
+          }
+        } else {
+          sumPrice =
+            item.unit_type === "LARGE"
+              ? item.product.tariff
+              : item.product.small_unit_tariff;
+        }
+        return {
+          order_id: newOrder.id,
+          product_id: item.product.id,
+          product_business_area_id: item.product.business_area_id,
+          product_variant_id: variant_id ? parsedVariantId : null,
+          product_variant_product_id: variant_id
+            ? parsedVariantProductId
+            : null,
+          product_variant_business_area_id: variant_id
+            ? parsedVariantBusinessAreaId
+            : null,
+          schedule_id:
+            item.product.type === "SERVICE" ? parsedScheduleId : null,
+          quantity: parsedQuantity * item.quantity,
+          unit_used: item.unit_type,
+          price: sumPrice,
+          service_id: parsedServiceId,
+          service_price: serviceRecord.price,
+          service_quantity: parsedQuantity,
+        };
+      });
 
       await tx.order_item.createMany({
         data: orderItemsData,

@@ -581,7 +581,11 @@ export default function OrderDetailPage() {
                       <div className="flex flex-col gap-2">
                         <p className="text-sm text-gray-600">
                           <span className="font-medium">Produk:</span>{" "}
-                          {product?.name || `Produk ID: ${product?.id}`}
+                          {`${product?.name} ${
+                            item.productVariant
+                              ? `(${item.productVariant.name})`
+                              : ""
+                          }`}
                         </p>
                         {product.type === "SERVICE" && (
                           <p className="text-sm text-gray-600">

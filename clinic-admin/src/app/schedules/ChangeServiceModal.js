@@ -119,7 +119,7 @@ export default function ChangeServiceModal({
               id="service-select"
               value={selectedServiceId}
               onChange={handleSelectChange}
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 transition duration-150 text-gray-900 appearance-none bg-white"
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 transition duration-150 text-gray-900 bg-white"
               disabled={isSubmitting || isLoading}
             >
               {isLoading || services.length === 0 ? (

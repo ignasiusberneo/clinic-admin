@@ -89,6 +89,11 @@ export async function GET(request, { params }) {
             updated_at: true,
             product_id: true,
             product_business_area_id: true,
+            productVariant: {
+              select: {
+                name: true,
+              },
+            },
             product: {
               select: {
                 name: true,

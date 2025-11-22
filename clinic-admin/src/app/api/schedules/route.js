@@ -139,7 +139,15 @@ export async function GET(request) {
             id: true,
             business_area_id: true,
             name: true,
-            // Tambahkan field lain dari product jika diperlukan
+            productVariants: {
+              select: {
+                id: true,
+                product_id: true,
+                product_business_area_id: true,
+                name: true,
+                price: true,
+              },
+            },
           },
         },
         service: {
